@@ -346,9 +346,9 @@
 
             <!-- Global Action Controls + Form Filter Tanggal (Laravel Request) -->
             <div class="flex flex-wrap items-center gap-2">
-                <form action="http://127.0.0.1:8000/nasa-asteroid" method="GET" class="flex items-center gap-1.5">
-                    <input type="date" name="date" value="2026-11-01" class="px-2.5 py-2 rounded-xl bg-slate-900/90 border border-cyan-500/40 text-cyan-300 text-xs font-mono focus:outline-none focus:border-cyan-400">
-                    <button type="submit" class="px-3 py-2 rounded-xl bg-indigo-500/20 border border-indigo-400/50 text-indigo-300 hover:bg-indigo-500/30 text-xs font-mono transition-all">
+                <form onsubmit="event.preventDefault(); if (typeof refreshData === 'function') refreshData();" class="flex items-center gap-2">
+                    <input type="date" id="dateInput" name="date" value="2026-11-01" onchange="if (typeof refreshData === 'function') refreshData();" class="px-2.5 py-2 rounded-xl bg-slate-900/90 border border-cyan-500/40 text-cyan-300 text-xs">
+                    <button type="submit" class="px-3 py-2 rounded-xl bg-indigo-500/20 border border-indigo-400/50 text-indigo-300 hover:bg-indigo-500/30 text-xs">
                         SCAN DATE
                     </button>
                 </form>
