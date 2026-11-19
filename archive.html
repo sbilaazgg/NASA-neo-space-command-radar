@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archive DB — NASA NEO Space Command Radar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: #030712;
+            color: #e2e8f0;
+        }
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 bg-[radial-gradient(ellipse_at_top,_rgba(14,116,144,0.18),_transparent_60%)]">
+    <div class="max-w-6xl mx-auto space-y-6">
+        <!-- Header -->
+        <div class="flex flex-wrap items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900/80 border border-cyan-500/25">
+            <div>
+                <h1 class="font-orbitron text-xl md:text-2xl font-bold text-cyan-300 tracking-wider">
+                    ARCHIVE DB // NEO STORAGE
+                </h1>
+                <p class="text-sm text-slate-400">
+                    Browser local archive (localStorage) for GitHub Pages deployment
+                </p>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="./index.html" class="px-4 py-2 rounded-lg bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 hover:bg-cyan-500/25 text-sm font-semibold transition">
+                    &larr; Back to Radar
+                </a>
+                <button onclick="clearAllArchives()" class="px-4 py-2 rounded-lg bg-rose-500/15 border border-rose-500/40 text-rose-300 hover:bg-rose-500/25 text-sm font-semibold transition">
+                    Clear All
+                </button>
+            </div>
+        </div>
+
+        <!-- Form Tambah Manual -->
+        <form id="archiveForm" class="grid grid-cols-1 md:grid-cols-5 gap-3 p-5 rounded-2xl bg-slate-900/70 border border-slate-800">
+            <input id="neoName" type="text" required placeholder="Object Name (e.g. 99942 Apophis)"
+                class="px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm focus:outline-none focus:border-cyan-400">
+            <input id="neoDiameter" type="number" step="any" required placeholder="Diameter (m)"
+                class="px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm focus:outline-none focus:border-cyan-400">
+            <input id="neoDistance" type="number" step="any" required placeholder="Distance (km)"
+                class="px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm focus:outline-none focus:border-cyan-400">
+            <input id="neoVelocity" type="number" step="any" required placeholder="Velocity (km/h)"
+                class="px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm focus:outline-none focus:border-cyan-400">
+            <div class="flex gap-2">
+                <select id="neoHazard" class="px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm focus:outline-none focus:border-cyan-400">
+                    <option value="0">SAFE</option>
+                    <option value="1">HAZARDOUS</option>
+                </select>
+                <button type="submit" class="flex-1 px-4 py-2 rounded-lg bg-amber-500/20 border border-amber-400/50 text-amber-300 hover:bg-amber-500/30 text-sm font-bold transition">
+                    + Save
+                </button>
+            </div>
+        </form>
+
+        <!-- Tabel Data Arsip -->
+        <div class="overflow-x-auto rounded-2xl bg-slate-900/70 border border-slate-800">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="border-b border-slate-800 text-cyan-300 uppercase text-xs bg-slate-950/60">
+                        <th class="p-3.5">Object Name</th>
+                        <th class="p-3.5">Diameter</th>
+                        <th class="p-3.5">Distance</th>
+                        <th class="p-3.5">Velocity</th>
+                        <th class="p-3.5">Status</th>
+                        <th class="p-3.5">Saved At</th>
+                        <th class="p-3.5 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="archiveTableBody" class="divide-y divide-slate-800/60"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'nasa_neo_archive_v1';
+
+        function getArchives() {
+            try {
+                return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+            } catch {
+                return [];
+            }
+        }
+
+        function saveArchives(items) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+        }
+
+        // Tangkap data otomatis jika dikirim lewat query string dari tombol Archive di index.html
+        (function ingestFromQuery() {
+            const params = new URLSearchParams(window.location.search);
+            const name = params.get('name');
+            if (!name) return;
+
+            const newItem = {
+                id: params.get('jpl_id') || ('NEO-' + Date.now()),
+                name: name,
+                diameter_m: Number(params.get('diameter_m') || 0),
+                distance_km: Number(params.get('distance_km') || 0),
+                velocity_kmh: Number(params.get('velocity_kmh') || 0),
+                is_hazardous: params.get('is_hazardous') === '1',
+                saved_at: new Date().toLocaleString('id-ID')
+            };
+
+            const current = getArchives();
+            current.unshift(newItem);
+            saveArchives(current);
+
+            // Bersihkan query URL agar tidak terduplikasi saat di-refresh
+            window.history.replaceState({}, document.title, window.location.pathname);
+        })();
+
+        document.getElementById('archiveForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const item = {
+                id: 'MANUAL-' + Date.now(),
+                name: document.getElementById('neoName').value.trim(),
+                diameter_m: Number(document.getElementById('neoDiameter').value || 0),
+                distance_km: Number(document.getElementById('neoDistance').value || 0),
+                velocity_kmh: Number(document.getElementById('neoVelocity').value || 0),
+                is_hazardous: document.getElementById('neoHazard').value === '1',
+                saved_at: new Date().toLocaleString('id-ID')
+            };
+
+            const current = getArchives();
+            current.unshift(item);
+            saveArchives(current);
+            this.reset();
+            renderArchives();
+        });
+
+        function deleteArchive(index) {
+            const current = getArchives();
+            current.splice(index, 1);
+            saveArchives(current);
+            renderArchives();
+        }
+
+        function clearAllArchives() {
+            if (!confirm('Hapus semua data arsip di browser ini?')) return;
+            localStorage.removeItem(STORAGE_KEY);
+            renderArchives();
+        }
+
+        function renderArchives() {
+            const tbody = document.getElementById('archiveTableBody');
+            const items = getArchives();
+
+            if (items.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-slate-500">
+                            Belum ada data asteroid tersimpan. Klik <b>Archive</b> di halaman Radar atau isi form di atas.
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = items.map((item, idx) => `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="p-3.5 font-semibold text-slate-100">${item.name}</td>
+                    <td class="p-3.5 text-cyan-300">${Number(item.diameter_m).toLocaleString()} m</td>
+                    <td class="p-3.5 text-amber-300">${(Number(item.distance_km) / 1000000).toFixed(2)}M km</td>
+                    <td class="p-3.5 text-purple-300">${Number(item.velocity_kmh).toLocaleString()} km/h</td>
+                    <td class="p-3.5">
+                        <span class="px-2 py-0.5 rounded text-xs font-bold border ${
+                            item.is_hazardous
+                                ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                                : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
+                        }">
+                            ${item.is_hazardous ? 'HAZARDOUS' : 'SAFE'}
+                        </span>
+                    </td>
+                    <td class="p-3.5 text-slate-400 text-xs">${item.saved_at || '-'}</td>
+                    <td class="p-3.5 text-right">
+                        <button onclick="deleteArchive(${idx})" class="px-2.5 py-1 rounded bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 text-xs">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        renderArchives();
+    </script>
+</body>
+</html>
