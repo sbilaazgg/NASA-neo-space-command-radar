@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Operator — ASTRONET NEO RADAR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 font-mono">
+    <div class="w-full max-w-md rounded-2xl bg-slate-900/90 border border-cyan-500/30 p-6 shadow-2xl">
+        <div class="mb-6">
+            <p class="text-xs tracking-widest text-cyan-400 uppercase">ASTRONET // NEO RADAR</p>
+            <h1 class="text-2xl font-bold text-white mt-1">REGISTER OPERATOR</h1>
+            <p class="text-xs text-slate-400 mt-1">Buat akun operator lokal untuk sesi radar di browser ini.</p>
+        </div>
+
+        <div id="alertBox" class="hidden mb-4 p-3 rounded-xl text-xs border"></div>
+
+        <form id="registerForm" class="space-y-4">
+            <div>
+                <label class="block text-xs text-cyan-300 mb-1">OPERATOR NAME</label>
+                <input type="text" id="regName" required placeholder="Contoh: Sabila Az Zahra"
+                    class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-cyan-400 focus:outline-none text-sm">
+            </div>
+
+            <div>
+                <label class="block text-xs text-cyan-300 mb-1">EMAIL / CALLSIGN</label>
+                <input type="email" id="regEmail" required placeholder="operator@astronet.local"
+                    class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-cyan-400 focus:outline-none text-sm">
+            </div>
+
+            <div>
+                <label class="block text-xs text-cyan-300 mb-1">PASSWORD</label>
+                <input type="password" id="regPassword" required minlength="4" placeholder="Minimal 4 karakter"
+                    class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-cyan-400 focus:outline-none text-sm">
+            </div>
+
+            <button type="submit"
+                class="w-full py-2.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 font-semibold text-sm transition">
+                CREATE ACCOUNT
+            </button>
+        </form>
+
+        <div class="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+            <span>Sudah punya akun? <a href="./login.html" class="text-cyan-400 hover:underline">Login</a></span>
+            <a href="./index.html" class="text-slate-300 hover:text-cyan-300">← Radar</a>
+        </div>
+    </div>
+
+    <script>
+        const USERS_KEY = 'astronet_users_v1';
+        const SESSION_KEY = 'astronet_active_operator_v1';
+
+        function showAlert(msg, isError = true) {
+            const box = document.getElementById('alertBox');
+            box.classList.remove('hidden');
+            box.className = `mb-4 p-3 rounded-xl text-xs border ${
+                isError
+                    ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
+                    : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+            }`;
+            box.textContent = msg;
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('regName').value.trim();
+            const email = document.getElementById('regEmail').value.trim().toLowerCase();
+            const password = document.getElementById('regPassword').value;
+
+            const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+            const exists = users.some(u => u.email === email);
+
+            if (exists) {
+                showAlert('Email/akun tersebut sudah terdaftar di browser ini.');
+                return;
+            }
+
+            const newUser = { name, email, password };
+            users.push(newUser);
+            localStorage.setItem(USERS_KEY, JSON.stringify(users));
+            localStorage.setItem(SESSION_KEY, JSON.stringify({ name, email }));
+
+            showAlert('Registrasi berhasil! Mengalihkan ke radar...', false);
+            setTimeout(() => {
+                window.location.href = './index.html';
+            }, 800);
+        });
+    </script>
+</body>
+</html>
