@@ -2,6 +2,18 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
+<script>
+// Gerbang login: halaman arsip hanya boleh dibuka kalau sudah login.
+// Cek sesi operator yang disimpan login.html / register.html. Kalau belum ada, langsung dialihkan ke login.
+(function () {
+  var op = null;
+  try { op = JSON.parse(localStorage.getItem('astronet_active_operator_v1') || 'null'); } catch (e) {}
+  if (!op || !op.email) {
+    document.documentElement.style.visibility = 'hidden';
+    location.replace('./login.html?next=' + encodeURIComponent('archive.html' + location.search));
+  }
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Arsip Observasi Asteroid - ASTRONET NEO</title>
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
