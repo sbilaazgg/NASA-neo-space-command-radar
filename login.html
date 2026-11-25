@@ -66,6 +66,13 @@
         const USERS_KEY = 'astronet_users_v1';
         const SESSION_KEY = 'astronet_active_operator_v1';
 
+        // Setelah login, kembali ke halaman yang tadi dituju (misalnya archive.html).
+        // Hanya archive.html yang diizinkan, selain itu ke index.html.
+        function getNextPage() {
+            const next = new URLSearchParams(window.location.search).get('next') || '';
+            return /^archive\.html(\?[^#]*)?$/.test(next) ? './' + next : './index.html';
+        }
+
         function showAlert(msg, isError = true) {
             const box = document.getElementById('alertBox');
             box.classList.remove('hidden');
@@ -93,7 +100,7 @@
             localStorage.setItem(SESSION_KEY, JSON.stringify({ name: found.name, email: found.email }));
             showAlert(`Akses diterima: ${found.name}`, false);
             setTimeout(() => {
-                window.location.href = './index.html';
+                window.location.href = getNextPage();
             }, 600);
         });
     </script>
