@@ -76,6 +76,12 @@
             box.textContent = msg;
         }
 
+        // Setelah daftar, kembali ke halaman yang tadi dituju (hanya archive.html yang diizinkan).
+        function getNextPage() {
+            const next = new URLSearchParams(window.location.search).get('next') || '';
+            return /^archive\.html(\?[^#]*)?$/.test(next) ? './' + next : './index.html';
+        }
+
         document.getElementById('registerForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const name = document.getElementById('regName').value.trim();
@@ -94,7 +100,7 @@
 
             showAlert('Akun operator dibuat! Mengalihkan ke radar...', false);
             setTimeout(() => {
-                window.location.href = './index.html';
+                window.location.href = getNextPage();
             }, 600);
         });
     </script>
