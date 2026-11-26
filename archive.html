@@ -18,6 +18,8 @@
 <title>Arsip Observasi Asteroid - ASTRONET NEO</title>
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
+<!-- Editor WYSIWYG (CKEditor 5 Classic) untuk kolom Catatan Analisis, sama seperti versi Laravel -->
+<script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/ckeditor.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
@@ -31,6 +33,20 @@ body{font-family:'Rajdhani',sans-serif;background:#030712;color:#f3f4f6}
 .inp:focus{outline:none;border-color:#22d3ee}
 .lbl{display:block;font:.7rem monospace;color:#94a3b8;margin-bottom:.2rem}
 .badge{padding:.1rem .5rem;border-radius:.25rem;font:700 .65rem monospace;border:1px solid;display:inline-block}
+/* Tema gelap untuk CKEditor 5 */
+.ck-editor__editable{min-height:150px;max-height:260px;background-color:#090d16 !important;color:#e2e8f0 !important;border-color:#334155 !important;font-family:sans-serif;font-size:14px}
+.ck.ck-editor__editable.ck-focused:not(.ck-editor__nested-editable){border-color:#22d3ee !important;box-shadow:none !important}
+.ck-toolbar{background-color:#0f172a !important;border-color:#334155 !important}
+.ck-button{color:#cbd5e1 !important}
+.ck-button:hover,.ck-button.ck-on{background-color:#1e293b !important;color:#38bdf8 !important}
+.ck.ck-dropdown__panel,.ck.ck-list{background:#0f172a !important;border-color:#334155 !important}
+/* Tampilan catatan (HTML dari editor) di dalam tabel; Tailwind menghapus gaya list bawaan, jadi dibuat lagi */
+.notes p{margin:0 0 .35rem}
+.notes ul{list-style:disc;padding-left:1.1rem;margin:0 0 .35rem}
+.notes ol{list-style:decimal;padding-left:1.1rem;margin:0 0 .35rem}
+.notes blockquote{border-left:3px solid #22d3ee;padding-left:.6rem;color:#94a3b8;font-style:italic;margin:0 0 .35rem}
+.notes h2,.notes h3,.notes h4{font-weight:700;color:#e2e8f0;margin:0 0 .3rem}
+.notes a{color:#38bdf8;text-decoration:underline}
 </style>
 </head>
 <body class="min-h-screen p-4 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -123,6 +139,66 @@ function save() {
   catch (e) { toast('Gagal menyimpan: penyimpanan browser penuh atau diblokir.', true); return false; }
 }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// ---------- CATATAN ANALISIS (HTML dari editor WYSIWYG) ----------
+// Tag yang boleh sama dengan versi Laravel (strip_tags): p, br, strong, b, em, i, u, ul, ol, li, h2-h4, blockquote, a.
+const NOTES_TAGS = ['P','BR','STRONG','B','EM','I','U','UL','OL','LI','H2','H3','H4','BLOCKQUOTE','A'];
+const NOTES_DROP = ['SCRIPT','STYLE','IFRAME','OBJECT','EMBED','LINK','META','SVG','MATH','TEMPLATE','NOSCRIPT'];
+const NOTES_IS_HTML = /<\/?(p|br|strong|b|em|i|u|ul|ol|li|h[2-4]|blockquote|a)\b/i;
+
+// Membersihkan HTML: tag di luar daftar dibuang (isinya tetap), semua atribut dibuang, link hanya http/https/mailto.
+function cleanNotes(html) {
+  const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+  (function walk(node) {
+    Array.from(node.childNodes).forEach(c => {
+      if (c.nodeType === 8) { c.remove(); return; }                 // komentar
+      if (c.nodeType !== 1) return;                                  // teks dibiarkan
+      if (NOTES_DROP.includes(c.tagName)) { c.remove(); return; }    // tag berbahaya dibuang beserta isinya
+      walk(c);
+      if (!NOTES_TAGS.includes(c.tagName)) {                         // tag lain: buang tag-nya, isinya dipertahankan
+        while (c.firstChild) c.parentNode.insertBefore(c.firstChild, c);
+        c.remove(); return;
+      }
+      const href = c.tagName === 'A' ? (c.getAttribute('href') || '') : '';
+      Array.from(c.attributes).forEach(a => c.removeAttribute(a.name));
+      if (c.tagName === 'A') {
+        if (/^(https?:|mailto:)/i.test(href.trim())) {
+          c.setAttribute('href', href.trim()); c.setAttribute('target', '_blank'); c.setAttribute('rel', 'noopener noreferrer');
+        }
+      }
+    });
+  })(doc.body);
+  return doc.body.innerHTML;
+}
+// Untuk ditampilkan di tabel. Catatan lama (teks biasa) dibungkus paragraf supaya baris barunya tetap terlihat.
+function notesHtml(raw) {
+  raw = String(raw || '');
+  if (!raw.trim()) return '';
+  if (!NOTES_IS_HTML.test(raw)) return '<p>' + esc(raw.trim()).replace(/\n/g, '<br>') + '</p>';
+  return notesText(raw) ? cleanNotes(raw) : '';
+}
+// Teks polos (tanpa tag) untuk pencarian, Excel, dan PDF. Daftar jadi "• ..." atau "1. ...".
+function notesText(raw) {
+  raw = String(raw || '');
+  if (!NOTES_IS_HTML.test(raw)) return raw.trim();
+  const body = new DOMParser().parseFromString(cleanNotes(raw), 'text/html').body;
+  let out = '';
+  (function walk(node) {
+    node.childNodes.forEach(c => {
+      if (c.nodeType === 3) { out += c.nodeValue; return; }
+      if (c.nodeType !== 1) return;
+      if (c.tagName === 'BR') { out += '\n'; return; }
+      if (/^(P|H2|H3|H4|BLOCKQUOTE|UL|OL)$/.test(c.tagName) && out && !out.endsWith('\n')) out += '\n';   // blok baru mulai di baris baru
+      if (c.tagName === 'UL' || c.tagName === 'OL') {
+        let k = 0;
+        c.childNodes.forEach(li => { if (li.tagName === 'LI') { k++; out += (c.tagName === 'OL' ? k + '. ' : '\u2022 '); walk(li); out += '\n'; } });
+        return;
+      }
+      walk(c);
+      if (/^(P|H2|H3|H4|BLOCKQUOTE)$/.test(c.tagName)) out += '\n';
+    });
+  })(body);
+  return out.replace(/\u00a0/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 const fmt = n => Number(n).toLocaleString('id-ID');
 const today = () => new Date().toISOString().slice(0, 10);
 const fd = d => { const x = new Date(d + 'T00:00:00'); return isNaN(x) ? esc(d) : x.toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}); };
@@ -139,7 +215,7 @@ function toast(msg, err) {
 
 function render() {
   const term = q.toLowerCase();
-  const list = sorted().filter(r => !term || [r.name, r.jpl_id, r.analysis_notes].join(' ').toLowerCase().includes(term));
+  const list = sorted().filter(r => !term || [r.name, r.jpl_id, notesText(r.analysis_notes)].join(' ').toLowerCase().includes(term));
   const pages = Math.max(1, Math.ceil(list.length / per));
   page = Math.min(page, pages);
   const slice = list.slice((page - 1) * per, page * per);
@@ -149,7 +225,7 @@ function render() {
       <td class="p-3"><div class="font-bold text-cyan-300 text-sm">${esc(r.name)}</div><div class="text-slate-400">JPL ID: ${esc(r.jpl_id || '-')}</div><div class="text-purple-300">Tgl: ${fd(r.observation_date)}</div></td>
       <td class="p-3">Diameter: <span class="text-cyan-300">${fmt(r.diameter_m)} m</span><br>Jarak: <span class="text-amber-300">${fmt(r.distance_km)} km</span><br>Kecepatan: <span class="text-purple-300">${fmt(r.velocity_kmh)} km/h</span></td>
       <td class="p-3 space-y-1">${r.is_hazardous ? '<span class="badge border-rose-500/50 text-rose-300 bg-rose-500/10">HAZARDOUS</span>' : '<span class="badge border-cyan-500/50 text-cyan-300 bg-cyan-500/10">SAFE</span>'}<br><span class="badge border-amber-500/40 text-amber-300">PRIORITY: ${esc(r.priority_level)}</span></td>
-      <td class="p-3 max-w-xs whitespace-pre-line text-slate-300">${esc(r.analysis_notes) || '<i class="text-slate-500">Belum ada catatan analisis.</i>'}</td>
+      <td class="p-3 max-w-xs notes text-slate-300">${notesHtml(r.analysis_notes) || '<i class="text-slate-500">Belum ada catatan analisis.</i>'}</td>
       <td class="p-3 text-right whitespace-nowrap">
         <button data-edit="${esc(r.id)}" class="btn border-amber-400/50 text-amber-300 bg-amber-500/10">Edit</button>
         <button data-del="${esc(r.id)}" class="btn border-rose-400/50 text-rose-300 bg-rose-500/10">Hapus</button>
@@ -173,13 +249,24 @@ $('tbody').onclick = e => {
   }
 };
 
+// Editor WYSIWYG untuk kolom catatan. Kalau CKEditor gagal dimuat (offline), kolom tetap berupa textarea biasa.
+let notesEditor = null;
+if (window.ClassicEditor) {
+  ClassicEditor
+    .create($('f_notes'), { toolbar: ['heading', '|', 'bold', 'italic', 'bulletedList', 'numberedList', 'blockQuote', '|', 'undo', 'redo'] })
+    .then(ed => { notesEditor = ed; })
+    .catch(err => console.error(err));
+}
+
 function openForm(r) {
   const d = r || {};
   $('formTitle').textContent = d.id ? 'EDIT OBSERVASI' : 'TAMBAH OBSERVASI';
   $('f_id').value = d.id || ''; $('f_name').value = d.name || ''; $('f_jpl').value = d.jpl_id || '';
   $('f_dia').value = d.diameter_m || ''; $('f_dist').value = d.distance_km || ''; $('f_vel').value = d.velocity_kmh || '';
   $('f_date').value = d.observation_date || today(); $('f_pri').value = d.priority_level || 'NORMAL';
-  $('f_haz').checked = !!d.is_hazardous; $('f_notes').value = d.analysis_notes || '';
+  $('f_haz').checked = !!d.is_hazardous;
+  // isi editor: catatan lama berupa teks biasa diubah dulu jadi paragraf
+  if (notesEditor) notesEditor.setData(notesHtml(d.analysis_notes)); else $('f_notes').value = notesText(d.analysis_notes);
   show('formModal');
 }
 $('form').onsubmit = e => {
@@ -189,8 +276,11 @@ $('form').onsubmit = e => {
     jpl_id: $('f_jpl').value.trim(), name: $('f_name').value.trim(),
     diameter_m: +$('f_dia').value, distance_km: +$('f_dist').value, velocity_kmh: +$('f_vel').value,
     is_hazardous: $('f_haz').checked, priority_level: $('f_pri').value,
-    observation_date: $('f_date').value, analysis_notes: $('f_notes').value.trim(),
+    observation_date: $('f_date').value, analysis_notes: '',
   };
+  // catatan dari editor (HTML) dibersihkan dulu; kalau isinya kosong, disimpan sebagai teks kosong
+  const rawNotes = notesEditor ? notesEditor.getData() : $('f_notes').value;
+  rec.analysis_notes = notesText(rawNotes) ? (NOTES_IS_HTML.test(rawNotes) ? cleanNotes(rawNotes) : rawNotes.trim()) : '';
   const i = rows.findIndex(r => r.id === rec.id);
   if (i >= 0) rows[i] = { ...rows[i], ...rec }; else rows.push({ ...rec, created: Date.now(), operator: currentOperator() });
   if (save()) { hide('formModal'); render(); toast('Arsip berhasil disimpan!'); }
@@ -199,7 +289,7 @@ $('form').onsubmit = e => {
 // ---------- EXPORT ----------
 function bodyRows() {
   return sorted().map((r, i) => [i + 1, r.jpl_id || '-', r.name, r.observation_date, r.diameter_m, r.distance_km, r.velocity_kmh,
-    r.is_hazardous ? 'HAZARDOUS' : 'SAFE', r.priority_level, r.analysis_notes || '-']);
+    r.is_hazardous ? 'HAZARDOUS' : 'SAFE', r.priority_level, notesText(r.analysis_notes) || '-']);
 }
 function exportExcel() {
   if (!rows.length) return toast('Arsip masih kosong.', true);
@@ -273,7 +363,7 @@ function exportPdf() {
       fd(r.observation_date),
       `Diameter: ${num(r.diameter_m)} m\nJarak: ${num(r.distance_km)} km\nKecepatan: ${num(r.velocity_kmh)} km/h`,
       { content: '', styles: { minCellHeight: statusH } },        // diisi manual di didDrawCell
-      r.analysis_notes ? r.analysis_notes : { content: 'Tidak ada catatan analisis.', styles: { fontStyle: 'italic' } },
+      notesText(r.analysis_notes) || { content: 'Tidak ada catatan analisis.', styles: { fontStyle: 'italic' } },
     ]),
     styles: { font: 'helvetica', fontSize: 8, cellPadding: PAD, textColor: C.text, lineColor: C.line, lineWidth: 0.5, valign: 'top', overflow: 'linebreak' },
     headStyles: { fillColor: C.ink, textColor: [248, 250, 252], fontStyle: 'bold', fontSize: 7.5, lineColor: C.ink, valign: 'middle' },
