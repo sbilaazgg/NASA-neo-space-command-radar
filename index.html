@@ -301,6 +301,8 @@
         table.dataTable.no-footer {
             border-bottom: 1px solid rgba(30, 41, 59, 0.8) !important;
         }
+        /* Tombol/tautan ke archive.html disembunyikan kalau belum login (class logged-in dipasang di window.onload) */
+        body:not(.logged-in) a[href^="./archive.html"] { display: none !important; }
     </style>
 </head>
 <body class="min-h-screen relative selection:bg-cyan-500 selection:text-black">
@@ -1402,6 +1404,25 @@
 
             const shapePoints = generateAsteroidShape();
 
+            // Putar asteroid dengan drag: gerakan kiri/kanan (deltaX x 0,015) ditambahkan ke sudut putar (modalAngle).
+            // Pakai pointer events supaya jalan di mouse (laptop) dan sentuhan jari (HP).
+            let isDragging = false;
+            let lastX = 0;
+            mCanvas.style.touchAction = 'none';   // geser jari di canvas tidak ikut men-scroll halaman
+            mCanvas.onpointerdown = (e) => {
+                isDragging = true;
+                lastX = e.clientX;
+                mCanvas.setPointerCapture(e.pointerId);   // tetap terbaca walau pointer keluar dari canvas
+                playSound('click');
+            };
+            mCanvas.onpointermove = (e) => {
+                if (!isDragging) return;
+                modalAngle += (e.clientX - lastX) * 0.015;
+                lastX = e.clientX;
+            };
+            mCanvas.onpointerup = () => { isDragging = false; };
+            mCanvas.onpointercancel = () => { isDragging = false; };
+
             function render() {
                 mCtx.fillStyle = '#030712';
                 mCtx.fillRect(0, 0, mCanvas.width, mCanvas.height);
@@ -1460,7 +1481,10 @@
 
                 mCtx.restore();
 
-                modalAngle += 0.015;
+                // Berputar sendiri pelan-pelan, kecuali sedang di-drag
+                if (!isDragging) {
+                    modalAngle += 0.01;
+                }
                 modalAnimId = requestAnimationFrame(render);
             }
 
@@ -1487,6 +1511,7 @@
             try { activeOperator = JSON.parse(localStorage.getItem('astronet_active_operator_v1') || 'null'); } catch (e) {}
             const opBadge = document.getElementById('operatorBadge');
             const authLink = document.getElementById('authActionLink');
+            if (activeOperator && activeOperator.email) document.body.classList.add('logged-in');
             if (activeOperator && opBadge) opBadge.textContent = `OP: ${activeOperator.name}`;
             if (activeOperator && authLink) {
                 authLink.textContent = 'LOGOUT';
